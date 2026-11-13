@@ -7,6 +7,8 @@ public interface ProductRepository {
 
     Mono<Product> save(Product product);
 
+    Mono<Product> findById(String id);
+
     Mono<Product> findByIdAndBranchId(String id, String branchId);
 
     Mono<Void> deleteById(String id);
