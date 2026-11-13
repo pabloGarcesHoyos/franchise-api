@@ -4,7 +4,9 @@ import co.com.accenture.api.error.GlobalErrorHandler;
 import co.com.accenture.model.exception.BusinessError;
 import co.com.accenture.model.exception.BusinessException;
 import co.com.accenture.model.franchise.Franchise;
+import co.com.accenture.model.product.TopStockProduct;
 import co.com.accenture.usecase.createfranchise.CreateFranchiseUseCase;
+import co.com.accenture.usecase.gettopstockproducts.GetTopStockProductsUseCase;
 import co.com.accenture.usecase.renamefranchise.RenameFranchiseUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -36,6 +39,9 @@ class FranchiseRouterTest {
 
     @MockitoBean
     private RenameFranchiseUseCase renameFranchiseUseCase;
+
+    @MockitoBean
+    private GetTopStockProductsUseCase getTopStockProductsUseCase;
 
     @Test
     void shouldCreateFranchiseAndReturn201() {
@@ -144,6 +150,44 @@ class FranchiseRouterTest {
                 .expectBody().jsonPath("$.code").isEqualTo("INVALID_REQUEST");
 
         verify(renameFranchiseUseCase, never()).execute(anyString(), any());
+    }
+
+    @Test
+    void shouldReturnTopStockProductPerBranch() {
+        when(getTopStockProductsUseCase.execute("f1")).thenReturn(Flux.just(
+                new TopStockProduct("b1", "Downtown", "p1", "Burger", 40),
+                new TopStockProduct("b2", "Airport", "p2", "Fries", 15)));
+
+        client.get().uri("/api/franchises/f1/top-stock-products")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentType(MediaType.APPLICATION_JSON)
+                .expectBody().json("""
+                        [
+                          {"branchId":"b1","branchName":"Downtown","productId":"p1","productName":"Burger","stock":40},
+                          {"branchId":"b2","branchName":"Airport","productId":"p2","productName":"Fries","stock":15}
+                        ]""", true);
+    }
+
+    @Test
+    void shouldReturnEmptyArrayWhenFranchiseHasNoProducts() {
+        when(getTopStockProductsUseCase.execute("f1")).thenReturn(Flux.empty());
+
+        client.get().uri("/api/franchises/f1/top-stock-products")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody().json("[]", true);
+    }
+
+    @Test
+    void shouldReturn404ForTopStockOfMissingFranchise() {
+        when(getTopStockProductsUseCase.execute("f1"))
+                .thenReturn(Flux.error(new BusinessException(BusinessError.FRANCHISE_NOT_FOUND)));
+
+        client.get().uri("/api/franchises/f1/top-stock-products")
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody().json("{\"code\":\"FRANCHISE_NOT_FOUND\",\"message\":\"Franchise not found\"}", true);
     }
 
     private WebTestClient.ResponseSpec post(String body) {
