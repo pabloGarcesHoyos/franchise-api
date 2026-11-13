@@ -71,4 +71,16 @@ class UpdateProductStockUseCaseTest {
 
         verify(productRepository, never()).save(any());
     }
+
+    @Test
+    void shouldFailWithValidationErrorAndNotSaveWhenStockIsMissing() {
+        when(productRepository.findById("p1")).thenReturn(Mono.just(existing));
+
+        StepVerifier.create(useCase.execute("p1", null))
+                .expectErrorSatisfies(error -> assertThat(((BusinessException) error).getError())
+                        .isEqualTo(BusinessError.INVALID_STOCK))
+                .verify();
+
+        verify(productRepository, never()).save(any());
+    }
 }

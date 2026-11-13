@@ -91,4 +91,20 @@ class ProductTest {
                 .extracting(exception -> ((BusinessException) exception).getError())
                 .isEqualTo(BusinessError.INVALID_STOCK);
     }
+
+    @Test
+    void shouldRejectMissingStockOnCreate() {
+        assertThatThrownBy(() -> Product.create("b1", "Burger", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getError())
+                .isEqualTo(BusinessError.INVALID_STOCK);
+    }
+
+    @Test
+    void shouldRejectMissingStockOnUpdate() {
+        assertThatThrownBy(() -> existing.updateStock(null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getError())
+                .isEqualTo(BusinessError.INVALID_STOCK);
+    }
 }

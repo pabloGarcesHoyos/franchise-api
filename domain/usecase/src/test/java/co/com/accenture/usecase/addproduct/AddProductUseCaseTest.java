@@ -100,4 +100,16 @@ class AddProductUseCaseTest {
                         .isEqualTo(BusinessError.PRODUCT_NAME_ALREADY_EXISTS))
                 .verify();
     }
+
+    @Test
+    void shouldFailWithValidationErrorAndNotSaveWhenStockIsMissing() {
+        when(branchRepository.findById("b1")).thenReturn(Mono.just(branch));
+
+        StepVerifier.create(useCase.execute("b1", "Burger", null))
+                .expectErrorSatisfies(error -> assertThat(((BusinessException) error).getError())
+                        .isEqualTo(BusinessError.INVALID_STOCK))
+                .verify();
+
+        verify(productRepository, never()).save(any());
+    }
 }
