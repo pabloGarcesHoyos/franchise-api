@@ -4,7 +4,7 @@ COPY . .
 RUN --mount=type=cache,target=/root/.gradle ./gradlew :app-service:bootJar --no-daemon
 
 FROM eclipse-temurin:21-jre-alpine
-RUN addgroup -S -g 10001 app && adduser -S -D -H -u 10001 -G app app
+RUN apk upgrade --no-cache && addgroup -S -g 10001 app && adduser -S -D -H -u 10001 -G app app
 WORKDIR /app
 COPY --from=build --chown=app:app /workspace/applications/app-service/build/libs/FranchiseApi.jar app.jar
 USER app
