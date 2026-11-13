@@ -1,0 +1,9 @@
+*
+!gradlew
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!settings.gradle
+!gradle.properties
+!lombok.config
+!**/build.gradle
+!**/src/main/**

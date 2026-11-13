@@ -1,11 +1,14 @@
-FROM eclipse-temurin:21-jdk-alpine
-# NOTE: If the Java base image already provides the user and its permissions, remove this line
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+FROM eclipse-temurin:21-jdk AS build
+WORKDIR /workspace
+COPY . .
+RUN --mount=type=cache,target=/root/.gradle ./gradlew :app-service:bootJar --no-daemon
+
+FROM eclipse-temurin:21-jre-alpine
+RUN addgroup -S -g 10001 app && adduser -S -D -H -u 10001 -G app app
 WORKDIR /app
-COPY *.jar FranchiseApi.jar
-# NOTE: If the Java base image already provides the user and its permissions, remove this line
-RUN chown -R appuser:appgroup /app
-ENV JAVA_OPTS="-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
-# Replace with a non-root user to avoid running the container with excessive privileges
-USER appuser
-ENTRYPOINT [ "/bin/sh", "-c", "/opt/java/openjdk/bin/java $JAVA_OPTS  -jar /app/FranchiseApi.jar" ]
+COPY --from=build --chown=app:app /workspace/applications/app-service/build/libs/FranchiseApi.jar app.jar
+USER app
+EXPOSE 8080
+HEALTHCHECK --interval=15s --timeout=3s --start-period=30s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1:8080/actuator/health || exit 1
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "/app/app.jar"]
