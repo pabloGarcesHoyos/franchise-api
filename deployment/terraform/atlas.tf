@@ -25,6 +25,12 @@ resource "mongodbatlas_advanced_cluster" "this" {
   ]
 }
 
+resource "mongodbatlas_project_ip_access_list" "app" {
+  project_id = mongodbatlas_project.this.id
+  ip_address = aws_eip.app.public_ip
+  comment    = "Elastic IP of the application instance"
+}
+
 resource "random_password" "database" {
   length  = 32
   special = false
