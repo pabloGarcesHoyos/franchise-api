@@ -1,0 +1,25 @@
+plugins {
+	id 'co.com.bancolombia.cleanArchitecture'
+	id 'org.springframework.boot' apply false
+    id 'org.sonarqube'
+    id 'info.solidsoft.pitest'
+}
+
+allprojects {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+    }
+}
+
+dependenciesOverride {
+   ensure 'com.fasterxml.jackson.core:jackson-core:2.23.0'
+   ensure 'tools.jackson.core:jackson-core:3.3.0'
+}
+
+subprojects {
+    ext['jackson-2-bom.version'] = "2.23.0"
+    ext['jackson-bom.version'] = "3.3.0"
+}
+
