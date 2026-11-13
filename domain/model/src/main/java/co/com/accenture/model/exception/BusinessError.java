@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum BusinessError {
     INVALID_NAME("INVALID_NAME", "Name must not be empty", ErrorType.VALIDATION),
-    INVALID_STOCK("INVALID_STOCK", "Stock must be greater than or equal to zero", ErrorType.VALIDATION),
+    INVALID_STOCK("INVALID_STOCK", "Stock is required and must be greater than or equal to zero", ErrorType.VALIDATION),
     FRANCHISE_NOT_FOUND("FRANCHISE_NOT_FOUND", "Franchise not found", ErrorType.NOT_FOUND),
     BRANCH_NOT_FOUND("BRANCH_NOT_FOUND", "Branch not found", ErrorType.NOT_FOUND),
     PRODUCT_NOT_FOUND("PRODUCT_NOT_FOUND", "Product not found", ErrorType.NOT_FOUND),

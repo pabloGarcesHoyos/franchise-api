@@ -15,7 +15,7 @@ public class Product {
     private final String name;
     private final int stock;
 
-    public static Product create(String branchId, String name, int stock) {
+    public static Product create(String branchId, String name, Integer stock) {
         return Product.builder()
                 .branchId(branchId)
                 .name(NameRules.normalize(name))
@@ -29,14 +29,14 @@ public class Product {
                 .build();
     }
 
-    public Product updateStock(int stock) {
+    public Product updateStock(Integer stock) {
         return toBuilder()
                 .stock(requireValidStock(stock))
                 .build();
     }
 
-    private static int requireValidStock(int stock) {
-        if (stock < 0) {
+    private static int requireValidStock(Integer stock) {
+        if (stock == null || stock < 0) {
             throw new BusinessException(BusinessError.INVALID_STOCK);
         }
         return stock;
