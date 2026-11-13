@@ -21,5 +21,33 @@ dependenciesOverride {
 subprojects {
     ext['jackson-2-bom.version'] = "2.23.0"
     ext['jackson-bom.version'] = "3.3.0"
+
+    plugins.withId('jacoco') {
+        def coverageExclusions = ['**/MainApplication*', '**/config/**']
+        def coveredClasses = files(sourceSets.main.output.classesDirs).asFileTree.matching {
+            exclude coverageExclusions
+        }
+
+        tasks.named('jacocoTestReport') {
+            classDirectories.setFrom(coveredClasses)
+        }
+
+        tasks.named('jacocoTestCoverageVerification') {
+            classDirectories.setFrom(coveredClasses)
+            violationRules {
+                rule {
+                    limit {
+                        counter = 'LINE'
+                        value = 'COVEREDRATIO'
+                        minimum = 0.80
+                    }
+                }
+            }
+        }
+
+        tasks.named('check') {
+            dependsOn tasks.named('jacocoTestCoverageVerification')
+        }
+    }
 }
 
