@@ -20,7 +20,7 @@ public class OpenApiConfig {
         return new OpenAPI().info(new Info()
                 .title("Franchise API")
                 .description("Reactive REST API to manage franchises, their branches and the stock of their products.")
-                .version("1.0.0"));
+                .version("1.0.1"));
     }
 
     @Bean

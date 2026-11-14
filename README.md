@@ -80,7 +80,12 @@ La regla de dependencias apunta siempre hacia el dominio:
 - `reactive-web` traduce HTTP a casos de uso. Los DTOs de petición y respuesta están separados del dominio y los handlers no contienen lógica de negocio.
 - `app-service` es el único módulo que conoce a todos. Arranca la aplicación y registra los casos de uso como beans sin que el dominio tenga anotaciones de Spring.
 
-El build valida estas reglas con la tarea `validateStructure` del plugin y con las pruebas de arquitectura (ArchUnit) que el plugin genera en `app-service`.
+La regla se comprueba en dos niveles:
+
+- El grafo de módulos de Gradle impide compilar una dependencia en el sentido equivocado, y la tarea `validateStructure` del plugin valida la estructura del proyecto.
+- `LayerDependencyTest` (ArchUnit, en `app-service`) verifica la dirección de las dependencias entre capas: ninguna capa usa el entry point ni el driven adapter, `usecase` solo es usado por el entry point y la aplicación, `model` solo depende de Java, Lombok y Reactor, y `usecase` solo de `model`.
+
+Además, el plugin genera en `app-service` sus propias pruebas de ArchUnit, que revisan convenciones de nombres y que los campos de los casos de uso y beans sean `final`.
 
 ## Tecnologías
 
@@ -175,24 +180,28 @@ Los índices únicos se crean al arrancar la aplicación, así que MongoDB debe 
 ./gradlew build
 ```
 
-El build compila, ejecuta todas las pruebas, genera los reportes de cobertura y de mutación, y falla si la cobertura de líneas de algún módulo baja del 80 %. Actualmente hay 196 pruebas.
+El build compila, ejecuta todas las pruebas, genera los reportes de cobertura y de mutación, y falla si la cobertura de líneas de algún módulo baja del 80 %. Actualmente hay 242 pruebas.
 
 | Módulo | Pruebas | Qué cubren |
 |---|---|---|
-| model | 45 | Reglas de cada entidad: nombres recortados y obligatorios, stock no negativo y obligatorio, inmutabilidad |
+| model | 67 | Reglas de cada entidad: nombres recortados, obligatorios y de 100 caracteres como máximo, caracteres invisibles, stock no negativo y obligatorio, inmutabilidad |
 | usecase | 36 | Cada caso de uso con Mockito y StepVerifier: camino feliz, recursos no encontrados, validaciones, conflictos y que no se guarde nada cuando hay error |
 | mongo-repository | 34 | Mapeo de documentos, delegación y traducción de duplicados (unitarias) y 7 pruebas de integración contra MongoDB real |
-| reactive-web | 74 | Cada endpoint con WebTestClient y casos de uso simulados, el manejador de errores y las cabeceras de seguridad |
-| app-service | 7 | Registro de casos de uso y reglas de arquitectura |
+| reactive-web | 93 | Cada endpoint y su tabla de rutas con WebTestClient y casos de uso simulados, la configuración de Jackson, el manejador de errores, OpenAPI y las cabeceras de seguridad |
+| app-service | 12 | Registro de los nueve casos de uso, reglas de capas y del plugin con ArchUnit, y 2 pruebas de extremo a extremo con BlockHound |
 
 ### Pruebas de integración
 
-`MongoAdaptersIntegrationTest` levanta un contenedor `mongo:8.0` con Testcontainers y comprueba contra una base real los índices únicos, el orden de las sucursales por nombre y el desempate por nombre del producto con más stock. Requiere Docker. Si Docker no está disponible, esas 7 pruebas se marcan como omitidas y el build sigue en verde.
+Requieren Docker. Si Docker no está disponible, las 9 pruebas que lo usan se marcan como omitidas y el build sigue en verde.
+
+- `MongoAdaptersIntegrationTest` (7 pruebas) levanta un contenedor `mongo:8.0` con Testcontainers y comprueba contra una base real los índices únicos, el orden de las sucursales por nombre y el desempate por nombre del producto con más stock.
+- `NonBlockingEndToEndTest` (2 pruebas) arranca la aplicación completa sobre Netty con MongoDB de Testcontainers y recorre los nueve endpoints y sus errores con BlockHound activo, de modo que cualquier llamada bloqueante en un hilo del event loop hace fallar la prueba. El scaffold ya instala BlockHound en todas las pruebas; la única excepción configurada corresponde a dos métodos internos del driver de MongoDB (un lock interno y la generación del identificador de sesión), no al código del proyecto.
 
 Para ejecutarlas por separado:
 
 ```bash
 ./gradlew :mongo-repository:test --tests '*MongoAdaptersIntegrationTest'
+./gradlew :app-service:test --tests '*NonBlockingEndToEndTest'
 ```
 
 ### Cobertura
@@ -207,7 +216,7 @@ La cobertura actual es del 100 % de líneas en `model`, `usecase` y `mongo-repos
 
 ### Pruebas de mutación
 
-Pitest se ejecuta dentro de `./gradlew build` y deja su reporte en `<módulo>/build/reports/pitest/index.html`. Para ejecutarlo solo en los módulos con código:
+Pitest se ejecuta dentro de `./gradlew build` y deja su reporte en `<módulo>/build/reports/pitest/index.html`. Todos los mutantes generados mueren: 30 en `model`, 30 en `usecase`, 19 en `mongo-repository` y 58 en `reactive-web`. Para ejecutarlo solo en los módulos con código:
 
 ```bash
 ./gradlew :model:pitest :usecase:pitest :mongo-repository:pitest :reactive-web:pitest
@@ -351,7 +360,7 @@ Los identificadores de los ejemplos son ilustrativos; MongoDB genera uno distint
 
 ## Errores
 
-Todos los errores responden con el mismo cuerpo:
+Todos los errores que genera la aplicación responden con el mismo cuerpo:
 
 ```json
 {"code":"FRANCHISE_NOT_FOUND","message":"Franchise not found"}
@@ -359,18 +368,22 @@ Todos los errores responden con el mismo cuerpo:
 
 | HTTP | code | Cuándo |
 |---|---|---|
-| 400 | `INVALID_NAME` | Nombre ausente, nulo, vacío o solo con espacios |
+| 400 | `INVALID_NAME` | Nombre ausente, nulo, vacío o compuesto solo por espacios o caracteres invisibles |
+| 400 | `NAME_TOO_LONG` | Nombre de más de 100 caracteres después de recortarlo |
 | 400 | `INVALID_STOCK` | Stock ausente, nulo o negativo |
-| 400 | `INVALID_REQUEST` | Cuerpo vacío, JSON mal formado o stock que no es un entero JSON (`1.5`, `"10"`, `true`) |
+| 400 | `INVALID_REQUEST` | Cuerpo vacío, JSON mal formado, nombre que no es un texto JSON (`123`, `true`) o stock que no es un entero JSON (`1.5`, `"10"`, `true`) |
 | 404 | `FRANCHISE_NOT_FOUND` | La franquicia no existe |
 | 404 | `BRANCH_NOT_FOUND` | La sucursal no existe |
 | 404 | `PRODUCT_NOT_FOUND` | El producto no existe o no pertenece a la sucursal indicada |
 | 409 | `FRANCHISE_NAME_ALREADY_EXISTS` | Ya existe una franquicia con ese nombre |
 | 409 | `BRANCH_NAME_ALREADY_EXISTS` | Ya existe una sucursal con ese nombre en la franquicia |
 | 409 | `PRODUCT_NAME_ALREADY_EXISTS` | Ya existe un producto con ese nombre en la sucursal |
-| 404 | `NOT_FOUND` | Ruta inexistente o método no definido para la ruta |
+| 404 | `NOT_FOUND` | Ruta inexistente, o método no definido para la ruta (incluidos `HEAD` y `OPTIONS`) |
+| 413 | `PAYLOAD_TOO_LARGE` | Cuerpo de más de 256 KB, el límite del decodificador de WebFlux |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | `Content-Type` distinto de JSON en una petición con cuerpo |
 | 500 | `INTERNAL_ERROR` | Error inesperado; se registra en el log y no se exponen detalles |
+
+La API no produce 405 ni 406: un método no definido sobre una ruta existente responde 404, y la cabecera `Accept` no se negocia, porque todas las respuestas con cuerpo son JSON. Una URI de más de unos 4 KB la rechaza el servidor HTTP (Netty) con 414 y sin cuerpo, antes de llegar a la aplicación.
 
 Algunos ejemplos:
 
@@ -419,7 +432,8 @@ curl -s "$API/api/franchises/000000000000000000000000/top-stock-products"
 ### Modelo y reglas
 
 - Las entidades son inmutables. Se crean con métodos de fábrica (`create`) y cada cambio (`rename`, `updateStock`) devuelve una instancia nueva después de validar sus reglas.
-- Los nombres se recortan (`"  Pizza Place  "` se guarda como `"Pizza Place"`) y no pueden quedar vacíos.
+- Los nombres se recortan (`"  Pizza Place  "` se guarda como `"Pizza Place"`) y no pueden quedar vacíos. El recorte quita en los extremos espacios, tabulaciones, saltos de línea, separadores Unicode como U+00A0 o U+2003, caracteres de formato como U+200B o U+FEFF y caracteres de control. Un nombre compuesto solo por esos caracteres responde `INVALID_NAME`; dentro del nombre se conservan.
+- Un nombre admite como máximo 100 caracteres después del recorte. Cada carácter Unicode cuenta como uno, también los emoji y las letras con tilde.
 - El stock es un entero mayor o igual a cero y es obligatorio, tanto al crear el producto como al actualizarlo.
 - Las validaciones del dominio corren dentro del flujo reactivo, de modo que un dato inválido llega como error del `Mono` y nunca como una excepción fuera de él.
 
@@ -427,19 +441,21 @@ curl -s "$API/api/franchises/000000000000000000000000/top-stock-products"
 
 - La unicidad la garantizan los índices únicos de MongoDB y no una consulta previa del tipo "existe": `franchises.name`, `branches (franchiseId, name)` y `products (branchId, name)`. Así no hay carrera entre dos peticiones simultáneas con el mismo nombre. El adaptador traduce la `DuplicateKeyException` al 409 que corresponde.
 - El ámbito de la unicidad cambia según el recurso: el nombre de una franquicia es único en todo el sistema, el de una sucursal solo dentro de su franquicia y el de un producto solo dentro de su sucursal.
-- La comparación distingue mayúsculas de minúsculas: `Pizza Place` y `pizza place` son nombres distintos.
+- La comparación distingue mayúsculas de minúsculas: `Pizza Place` y `pizza place` son nombres distintos y pueden convivir en el mismo ámbito.
 
 ### Producto con más stock
 
 - Recorre las sucursales de la franquicia ordenadas por nombre y devuelve, para cada una, el producto con más stock.
 - Las sucursales sin productos se omiten y una franquicia sin sucursales devuelve `[]`.
 - Si dos productos empatan en stock, gana el de nombre menor en orden ascendente. La consulta lo resuelve en MongoDB ordenando por stock descendente y nombre ascendente.
+- El orden por nombre, tanto el de las sucursales como el del desempate, compara los textos tal como están guardados y distingue mayúsculas: las mayúsculas van antes que las minúsculas. Con `Zeta`, `alpha` y `Beta` empatados, gana `Beta`, y una sucursal `Zona` aparece antes que `aeropuerto`.
 
 ### Validación de peticiones
 
 - Un cuerpo vacío o un JSON mal formado responden 400 `INVALID_REQUEST` sin llegar al caso de uso.
 - Un `name` o `stock` ausente o nulo llega al dominio y responde 400 `INVALID_NAME` o `INVALID_STOCK`, nunca 500.
-- Jackson está configurado para no convertir tipos de forma implícita en los números: `1.5` no se trunca a `1` y `"10"` no se convierte en `10`. Ambos responden 400 `INVALID_REQUEST`. Un número enviado como nombre (`{"name": 123}`) sí se acepta como el texto `"123"`.
+- Jackson está configurado para no convertir tipos de forma implícita: `1.5` no se trunca a `1`, `"10"` no se convierte en `10` y un número o booleano enviado como nombre (`{"name": 123}`, `{"name": true}`) no se convierte en texto. Todos responden 400 `INVALID_REQUEST`.
+- Un cuerpo de más de 256 KB responde 413 `PAYLOAD_TOO_LARGE` sin llegar al caso de uso.
 - Cuando el recurso no existe y además el nombre o el stock son inválidos, la respuesta es 404, porque el caso de uso comprueba primero la existencia. Un cuerpo vacío o mal formado, en cambio, responde 400 aunque el recurso no exista, porque se rechaza antes de llegar al caso de uso.
 - Un identificador con formato que no es un ObjectId válido responde 404 del recurso correspondiente, no 400.
 - Al eliminar un producto se valida primero la sucursal (`BRANCH_NOT_FOUND`) y luego que el producto pertenezca a ella (`PRODUCT_NOT_FOUND`). Un producto existente no se puede borrar a través de otra sucursal.
@@ -456,7 +472,7 @@ El código está en `deployment/terraform`, separado por responsabilidad (`atlas
 
 - En MongoDB Atlas: el proyecto `franchise-api`, un cluster M0 en AWS `US_EAST_1`, un usuario con `readWrite` solo sobre la base `franchises` y una access list que solo admite la Elastic IP de la instancia.
 - En AWS:
-  - un repositorio ECR con escaneo al subir y retención de las últimas 5 imágenes;
+  - un repositorio ECR con escaneo al subir, retención de las últimas 5 imágenes y expiración de las imágenes sin tag al día siguiente;
   - la URI de conexión como `SecureString` en SSM Parameter Store;
   - un rol de instancia con los permisos mínimos;
   - una instancia EC2 `t4g.micro` (arm64) con Amazon Linux 2023 en la VPC por defecto, con Elastic IP y un Security Group que solo abre el puerto 8080.
@@ -574,6 +590,13 @@ Elimina todos los recursos de AWS y de Atlas, incluido el cluster con sus datos.
 - **MongoDB Atlas:** el usuario de la aplicación solo tiene `readWrite` sobre `franchises` y la access list solo admite la Elastic IP de la instancia.
 - **Cabeceras HTTP:** las respuestas incluyen `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, `Referrer-Policy` y `Strict-Transport-Security`, y no incluyen la cabecera `Server`. La política de contenido es estricta en toda la API y solo se relaja para Swagger UI y `/v3/api-docs`, que necesitan estilos en línea e imágenes `data:`.
 - **Errores:** los errores inesperados responden con un mensaje genérico. El detalle queda solo en el log.
+- **Actuator:** solo se expone `/actuator/health` (con `liveness` y `readiness`). No hay endpoints de métricas, entorno ni beans publicados.
+- **Análisis estático de la infraestructura:** trivy y checkov reportan hallazgos que se aceptan para el alcance de la prueba:
+  - Salida a cualquier IP desde la instancia: hace falta para ECR, SSM y MongoDB Atlas, cuyas direcciones no son fijas.
+  - Tags mutables en ECR: el despliegue usa el tag `latest`, que se sobrescribe en cada versión.
+  - Cifrado con la clave administrada por AWS en ECR y SSM, en lugar de una clave KMS propia, que tendría costo.
+  - Sin monitoreo detallado de EC2 ni instancia optimizada para EBS, que no aplican a una `t4g.micro` de prueba.
+  - El aviso de credenciales en `ssm.tf` es un falso positivo: corresponde al formato `%s:%s@` con el que se arma la URI, no a un secreto.
 
 ## Limitaciones conocidas
 
@@ -591,4 +614,4 @@ Elimina todos los recursos de AWS y de Atlas, incluido el cluster con sus datos.
 - `main` contiene las versiones publicadas y `develop` la integración.
 - Cada cambio se trabaja en una rama desde `develop` (`feature/<nombre>`, `fix/<nombre>` o `chore/<nombre>`) y entra a `develop` por pull request con merge commit.
 - Los commits siguen Conventional Commits en inglés, en imperativo y minúscula, con los tipos `feat`, `fix`, `test`, `chore`, `docs`, `refactor` y `build`.
-- Las versiones se publican con un pull request de `develop` a `main`, un tag anotado y un release en GitHub. La primera versión es `v1.0.0`.
+- Las versiones se publican con un pull request de `develop` a `main`, un tag anotado y un release en GitHub. La primera versión es `v1.0.0`; `v1.0.1` agrega las correcciones de validación, configuración, documentación y pruebas de la auditoría final.

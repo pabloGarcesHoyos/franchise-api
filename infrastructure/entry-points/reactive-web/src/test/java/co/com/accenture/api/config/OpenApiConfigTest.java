@@ -22,7 +22,7 @@ class OpenApiConfigTest {
 
         assertThat(info.getTitle()).isEqualTo("Franchise API");
         assertThat(info.getDescription()).isNotBlank();
-        assertThat(info.getVersion()).isEqualTo("1.0.0");
+        assertThat(info.getVersion()).isEqualTo("1.0.1");
     }
 
     @Test
