@@ -1,4 +1,9 @@
 package co.com.accenture.api.error;
 
-public record ErrorResponse(String code, String message) {
+import io.swagger.v3.oas.annotations.media.Schema;
+
+@Schema(description = "Uniform error body")
+public record ErrorResponse(
+        @Schema(description = "Stable error code", example = "FRANCHISE_NOT_FOUND") String code,
+        @Schema(description = "Human readable message", example = "Franchise not found") String message) {
 }
