@@ -29,6 +29,7 @@ class GlobalErrorHandlerTest {
     static Stream<Arguments> businessErrors() {
         return Stream.of(
                 Arguments.of(BusinessError.INVALID_NAME, HttpStatus.BAD_REQUEST),
+                Arguments.of(BusinessError.NAME_TOO_LONG, HttpStatus.BAD_REQUEST),
                 Arguments.of(BusinessError.INVALID_STOCK, HttpStatus.BAD_REQUEST),
                 Arguments.of(BusinessError.FRANCHISE_NOT_FOUND, HttpStatus.NOT_FOUND),
                 Arguments.of(BusinessError.BRANCH_NOT_FOUND, HttpStatus.NOT_FOUND),
