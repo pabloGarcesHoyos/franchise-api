@@ -472,7 +472,7 @@ El código está en `deployment/terraform`, separado por responsabilidad (`atlas
 
 - En MongoDB Atlas: el proyecto `franchise-api`, un cluster M0 en AWS `US_EAST_1`, un usuario con `readWrite` solo sobre la base `franchises` y una access list que solo admite la Elastic IP de la instancia.
 - En AWS:
-  - un repositorio ECR con escaneo al subir y retención de las últimas 5 imágenes;
+  - un repositorio ECR con escaneo al subir, retención de las últimas 5 imágenes y expiración de las imágenes sin tag al día siguiente;
   - la URI de conexión como `SecureString` en SSM Parameter Store;
   - un rol de instancia con los permisos mínimos;
   - una instancia EC2 `t4g.micro` (arm64) con Amazon Linux 2023 en la VPC por defecto, con Elastic IP y un Security Group que solo abre el puerto 8080.
@@ -590,6 +590,13 @@ Elimina todos los recursos de AWS y de Atlas, incluido el cluster con sus datos.
 - **MongoDB Atlas:** el usuario de la aplicación solo tiene `readWrite` sobre `franchises` y la access list solo admite la Elastic IP de la instancia.
 - **Cabeceras HTTP:** las respuestas incluyen `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, `Referrer-Policy` y `Strict-Transport-Security`, y no incluyen la cabecera `Server`. La política de contenido es estricta en toda la API y solo se relaja para Swagger UI y `/v3/api-docs`, que necesitan estilos en línea e imágenes `data:`.
 - **Errores:** los errores inesperados responden con un mensaje genérico. El detalle queda solo en el log.
+- **Actuator:** solo se expone `/actuator/health` (con `liveness` y `readiness`). No hay endpoints de métricas, entorno ni beans publicados.
+- **Análisis estático de la infraestructura:** trivy y checkov reportan hallazgos que se aceptan para el alcance de la prueba:
+  - Salida a cualquier IP desde la instancia: hace falta para ECR, SSM y MongoDB Atlas, cuyas direcciones no son fijas.
+  - Tags mutables en ECR: el despliegue usa el tag `latest`, que se sobrescribe en cada versión.
+  - Cifrado con la clave administrada por AWS en ECR y SSM, en lugar de una clave KMS propia, que tendría costo.
+  - Sin monitoreo detallado de EC2 ni instancia optimizada para EBS, que no aplican a una `t4g.micro` de prueba.
+  - El aviso de credenciales en `ssm.tf` es un falso positivo: corresponde al formato `%s:%s@` con el que se arma la URI, no a un secreto.
 
 ## Limitaciones conocidas
 
@@ -607,4 +614,4 @@ Elimina todos los recursos de AWS y de Atlas, incluido el cluster con sus datos.
 - `main` contiene las versiones publicadas y `develop` la integración.
 - Cada cambio se trabaja en una rama desde `develop` (`feature/<nombre>`, `fix/<nombre>` o `chore/<nombre>`) y entra a `develop` por pull request con merge commit.
 - Los commits siguen Conventional Commits en inglés, en imperativo y minúscula, con los tipos `feat`, `fix`, `test`, `chore`, `docs`, `refactor` y `build`.
-- Las versiones se publican con un pull request de `develop` a `main`, un tag anotado y un release en GitHub. La primera versión es `v1.0.0`.
+- Las versiones se publican con un pull request de `develop` a `main`, un tag anotado y un release en GitHub. La primera versión es `v1.0.0`; `v1.0.1` agrega las correcciones de validación, configuración, documentación y pruebas de la auditoría final.
