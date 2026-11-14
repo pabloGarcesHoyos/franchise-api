@@ -5,8 +5,6 @@ spring:
     name: "FranchiseApi"
   devtools:
     add-properties: false
-  profiles:
-    include: null
   mongodb:
     uri: "${MONGODB_URI:mongodb://localhost:27017/franchises}"
   data:
