@@ -359,9 +359,10 @@ Todos los errores responden con el mismo cuerpo:
 
 | HTTP | code | Cuándo |
 |---|---|---|
-| 400 | `INVALID_NAME` | Nombre ausente, nulo, vacío o solo con espacios |
+| 400 | `INVALID_NAME` | Nombre ausente, nulo, vacío o compuesto solo por espacios o caracteres invisibles |
+| 400 | `NAME_TOO_LONG` | Nombre de más de 100 caracteres después de recortarlo |
 | 400 | `INVALID_STOCK` | Stock ausente, nulo o negativo |
-| 400 | `INVALID_REQUEST` | Cuerpo vacío, JSON mal formado o stock que no es un entero JSON (`1.5`, `"10"`, `true`) |
+| 400 | `INVALID_REQUEST` | Cuerpo vacío, JSON mal formado, nombre que no es un texto JSON (`123`, `true`) o stock que no es un entero JSON (`1.5`, `"10"`, `true`) |
 | 404 | `FRANCHISE_NOT_FOUND` | La franquicia no existe |
 | 404 | `BRANCH_NOT_FOUND` | La sucursal no existe |
 | 404 | `PRODUCT_NOT_FOUND` | El producto no existe o no pertenece a la sucursal indicada |
@@ -419,7 +420,8 @@ curl -s "$API/api/franchises/000000000000000000000000/top-stock-products"
 ### Modelo y reglas
 
 - Las entidades son inmutables. Se crean con métodos de fábrica (`create`) y cada cambio (`rename`, `updateStock`) devuelve una instancia nueva después de validar sus reglas.
-- Los nombres se recortan (`"  Pizza Place  "` se guarda como `"Pizza Place"`) y no pueden quedar vacíos.
+- Los nombres se recortan (`"  Pizza Place  "` se guarda como `"Pizza Place"`) y no pueden quedar vacíos. El recorte quita en los extremos espacios, tabulaciones, saltos de línea, separadores Unicode como U+00A0 o U+2003, caracteres de formato como U+200B o U+FEFF y caracteres de control. Un nombre compuesto solo por esos caracteres responde `INVALID_NAME`; dentro del nombre se conservan.
+- Un nombre admite como máximo 100 caracteres después del recorte. Cada carácter Unicode cuenta como uno, también los emoji y las letras con tilde.
 - El stock es un entero mayor o igual a cero y es obligatorio, tanto al crear el producto como al actualizarlo.
 - Las validaciones del dominio corren dentro del flujo reactivo, de modo que un dato inválido llega como error del `Mono` y nunca como una excepción fuera de él.
 
@@ -439,7 +441,8 @@ curl -s "$API/api/franchises/000000000000000000000000/top-stock-products"
 
 - Un cuerpo vacío o un JSON mal formado responden 400 `INVALID_REQUEST` sin llegar al caso de uso.
 - Un `name` o `stock` ausente o nulo llega al dominio y responde 400 `INVALID_NAME` o `INVALID_STOCK`, nunca 500.
-- Jackson está configurado para no convertir tipos de forma implícita en los números: `1.5` no se trunca a `1` y `"10"` no se convierte en `10`. Ambos responden 400 `INVALID_REQUEST`. Un número enviado como nombre (`{"name": 123}`) sí se acepta como el texto `"123"`.
+- Jackson está configurado para no convertir tipos de forma implícita: `1.5` no se trunca a `1`, `"10"` no se convierte en `10` y un número o booleano enviado como nombre (`{"name": 123}`, `{"name": true}`) no se convierte en texto. Todos responden 400 `INVALID_REQUEST`.
+- Un cuerpo de más de 256 KB responde 413 `PAYLOAD_TOO_LARGE` sin llegar al caso de uso.
 - Cuando el recurso no existe y además el nombre o el stock son inválidos, la respuesta es 404, porque el caso de uso comprueba primero la existencia. Un cuerpo vacío o mal formado, en cambio, responde 400 aunque el recurso no exista, porque se rechaza antes de llegar al caso de uso.
 - Un identificador con formato que no es un ObjectId válido responde 404 del recurso correspondiente, no 400.
 - Al eliminar un producto se valida primero la sucursal (`BRANCH_NOT_FOUND`) y luego que el producto pertenezca a ella (`PRODUCT_NOT_FOUND`). Un producto existente no se puede borrar a través de otra sucursal.
