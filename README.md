@@ -351,7 +351,7 @@ Los identificadores de los ejemplos son ilustrativos; MongoDB genera uno distint
 
 ## Errores
 
-Todos los errores responden con el mismo cuerpo:
+Todos los errores que genera la aplicación responden con el mismo cuerpo:
 
 ```json
 {"code":"FRANCHISE_NOT_FOUND","message":"Franchise not found"}
@@ -369,9 +369,12 @@ Todos los errores responden con el mismo cuerpo:
 | 409 | `FRANCHISE_NAME_ALREADY_EXISTS` | Ya existe una franquicia con ese nombre |
 | 409 | `BRANCH_NAME_ALREADY_EXISTS` | Ya existe una sucursal con ese nombre en la franquicia |
 | 409 | `PRODUCT_NAME_ALREADY_EXISTS` | Ya existe un producto con ese nombre en la sucursal |
-| 404 | `NOT_FOUND` | Ruta inexistente o método no definido para la ruta |
+| 404 | `NOT_FOUND` | Ruta inexistente, o método no definido para la ruta (incluidos `HEAD` y `OPTIONS`) |
+| 413 | `PAYLOAD_TOO_LARGE` | Cuerpo de más de 256 KB, el límite del decodificador de WebFlux |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | `Content-Type` distinto de JSON en una petición con cuerpo |
 | 500 | `INTERNAL_ERROR` | Error inesperado; se registra en el log y no se exponen detalles |
+
+La API no produce 405 ni 406: un método no definido sobre una ruta existente responde 404, y la cabecera `Accept` no se negocia, porque todas las respuestas con cuerpo son JSON. Una URI de más de unos 4 KB la rechaza el servidor HTTP (Netty) con 414 y sin cuerpo, antes de llegar a la aplicación.
 
 Algunos ejemplos:
 
@@ -429,13 +432,14 @@ curl -s "$API/api/franchises/000000000000000000000000/top-stock-products"
 
 - La unicidad la garantizan los índices únicos de MongoDB y no una consulta previa del tipo "existe": `franchises.name`, `branches (franchiseId, name)` y `products (branchId, name)`. Así no hay carrera entre dos peticiones simultáneas con el mismo nombre. El adaptador traduce la `DuplicateKeyException` al 409 que corresponde.
 - El ámbito de la unicidad cambia según el recurso: el nombre de una franquicia es único en todo el sistema, el de una sucursal solo dentro de su franquicia y el de un producto solo dentro de su sucursal.
-- La comparación distingue mayúsculas de minúsculas: `Pizza Place` y `pizza place` son nombres distintos.
+- La comparación distingue mayúsculas de minúsculas: `Pizza Place` y `pizza place` son nombres distintos y pueden convivir en el mismo ámbito.
 
 ### Producto con más stock
 
 - Recorre las sucursales de la franquicia ordenadas por nombre y devuelve, para cada una, el producto con más stock.
 - Las sucursales sin productos se omiten y una franquicia sin sucursales devuelve `[]`.
 - Si dos productos empatan en stock, gana el de nombre menor en orden ascendente. La consulta lo resuelve en MongoDB ordenando por stock descendente y nombre ascendente.
+- El orden por nombre, tanto el de las sucursales como el del desempate, compara los textos tal como están guardados y distingue mayúsculas: las mayúsculas van antes que las minúsculas. Con `Zeta`, `alpha` y `Beta` empatados, gana `Beta`, y una sucursal `Zona` aparece antes que `aeropuerto`.
 
 ### Validación de peticiones
 
