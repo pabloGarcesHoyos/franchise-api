@@ -44,3 +44,14 @@ variable "ecr_images_to_keep" {
   type        = number
   default     = 5
 }
+
+variable "ecr_untagged_retention_days" {
+  description = "Days an untagged image is kept in ECR before it expires"
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.ecr_untagged_retention_days >= 1
+    error_message = "The retention must be at least one day."
+  }
+}
