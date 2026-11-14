@@ -50,11 +50,14 @@ class GetTopStockProductsUseCaseTest {
     void shouldReturnTopStockProductOfEachBranchInBranchOrder() {
         when(franchiseRepository.findById("f1")).thenReturn(Mono.just(franchise));
         when(branchRepository.findByFranchiseId("f1")).thenReturn(Flux.just(downtown, airport));
-        when(productRepository.findTopByStock("b1")).thenReturn(Mono.just(product("p1", "b1", "Burger", 40))
-                .delayElement(Duration.ofMillis(50)));
+        when(productRepository.findTopByStock("b1")).thenAnswer(invocation -> Mono.just(product("p1", "b1", "Burger", 40))
+                .delayElement(Duration.ofSeconds(1)));
         when(productRepository.findTopByStock("b2")).thenReturn(Mono.just(product("p2", "b2", "Fries", 15)));
 
-        StepVerifier.create(useCase.execute("f1"))
+        StepVerifier.withVirtualTime(() -> useCase.execute("f1"))
+                .expectSubscription()
+                .expectNoEvent(Duration.ofMillis(999))
+                .thenAwait(Duration.ofMillis(1))
                 .expectNext(new TopStockProduct("b1", "Downtown", "p1", "Burger", 40))
                 .expectNext(new TopStockProduct("b2", "Airport", "p2", "Fries", 15))
                 .verifyComplete();
