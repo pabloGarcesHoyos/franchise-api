@@ -1,10 +1,23 @@
-##Spring Configuration
 server:
   port: 8080
 spring:
   application:
-    name: FranchiseApi
+    name: "FranchiseApi"
   devtools:
     add-properties: false
   profiles:
-    include:
+    include: null
+  mongodb:
+    uri: "${MONGODB_URI:mongodb://localhost:27017/franchises}"
+  data:
+    mongodb:
+      auto-index-creation: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,prometheus"
+  endpoint:
+    health:
+      probes:
+        enabled: true
