@@ -23,26 +23,26 @@ class NameRulesTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {" Main ", "​Main​", " Main　", "﻿Main⁠",
-            "\u0007Main\u0000", "\t ​ Main ​ \n"})
+    @ValueSource(strings = {"\u00A0Main\u00A0", "\u200BMain\u200B", "\u2003Main\u3000", "\uFEFFMain\u2060",
+            "\u0007Main\u0000", "\t\u00A0\u200B Main \u200B\u00A0\n"})
     void shouldStripInvisibleCharactersAndSeparatorsAtBothEnds(String name) {
         assertThat(NameRules.normalize(name)).isEqualTo("Main");
     }
 
     @Test
     void shouldKeepInvisibleCharactersAndSpacesInsideTheName() {
-        assertThat(NameRules.normalize(" Main Street​North ")).isEqualTo("Main Street​North");
+        assertThat(NameRules.normalize(" Main\u00A0Street\u200BNorth ")).isEqualTo("Main\u00A0Street\u200BNorth");
     }
 
     @Test
     void shouldKeepSupplementaryCharactersAtBothEnds() {
-        assertThat(NameRules.normalize(" 🍕 Pizza 🍕 ")).isEqualTo("🍕 Pizza 🍕");
+        assertThat(NameRules.normalize(" \uD83C\uDF55 Pizza \uD83C\uDF55 ")).isEqualTo("\uD83C\uDF55 Pizza \uD83C\uDF55");
     }
 
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {" ", "   ", "\t", "\n", " ", " ", "　", "​", "‌‍",
-            "﻿", "⁠", "\u0000", " ​\t　"})
+    @ValueSource(strings = {" ", "   ", "\t", "\n", "\u00A0", "\u2003", "\u3000", "\u200B", "\u200C\u200D",
+            "\uFEFF", "\u2060", "\u0000", "\u00A0\u200B\t\u3000"})
     void shouldRejectMissingBlankOrInvisibleOnlyName(String name) {
         assertThatThrownBy(() -> NameRules.normalize(name))
                 .isInstanceOf(BusinessException.class)
@@ -59,7 +59,7 @@ class NameRulesTest {
 
     @Test
     void shouldCountSupplementaryCharactersAsOneCharacter() {
-        String name = "🍕".repeat(NameRules.MAX_LENGTH);
+        String name = "\uD83C\uDF55".repeat(NameRules.MAX_LENGTH);
 
         assertThat(NameRules.normalize(name)).isEqualTo(name);
     }
