@@ -1,5 +1,6 @@
 package co.com.accenture.api.franchise;
 
+import co.com.accenture.api.config.JsonConfig;
 import co.com.accenture.api.error.GlobalErrorHandler;
 import co.com.accenture.model.exception.BusinessError;
 import co.com.accenture.model.exception.BusinessException;
@@ -9,24 +10,28 @@ import co.com.accenture.usecase.createfranchise.CreateFranchiseUseCase;
 import co.com.accenture.usecase.gettopstockproducts.GetTopStockProductsUseCase;
 import co.com.accenture.usecase.renamefranchise.RenameFranchiseUseCase;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @WebFluxTest
-@ContextConfiguration(classes = {FranchiseRouter.class, FranchiseHandler.class, GlobalErrorHandler.class})
+@ContextConfiguration(classes = {FranchiseRouter.class, FranchiseHandler.class, GlobalErrorHandler.class, JsonConfig.class})
 class FranchiseRouterTest {
 
     private final Franchise franchise = Franchise.builder().id("f1").name("Burger House").build();
@@ -101,6 +106,25 @@ class FranchiseRouterTest {
         post("{\"name\":\"Burger House\"}")
                 .expectStatus().is5xxServerError()
                 .expectBody().json("{\"code\":\"INTERNAL_ERROR\",\"message\":\"An unexpected error occurred\"}", true);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"123", "1.5", "true"})
+    void shouldReturn400ForNonTextualNameWithoutCallingUseCase(String name) {
+        post("{\"name\":" + name + "}")
+                .expectStatus().isBadRequest()
+                .expectBody().json("{\"code\":\"INVALID_REQUEST\",\"message\":\"Request body is missing or malformed\"}", true);
+
+        verify(createFranchiseUseCase, never()).execute(any());
+    }
+
+    @Test
+    void shouldReturn413ForBodyOverBufferLimitWithoutCallingUseCase() {
+        post("{\"name\":\"" + "x".repeat(300_000) + "\"}")
+                .expectStatus().isEqualTo(413)
+                .expectBody().json("{\"code\":\"PAYLOAD_TOO_LARGE\",\"message\":\"Request body exceeds the maximum allowed size\"}", true);
+
+        verify(createFranchiseUseCase, never()).execute(any());
     }
 
     @Test
@@ -195,6 +219,19 @@ class FranchiseRouterTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(body)
                 .exchange();
+    }
+
+    @Test
+    void shouldRouteEveryOperationToItsHandlerMethod() {
+        FranchiseHandler handler = mock(FranchiseHandler.class);
+        when(handler.create(any())).thenReturn(ServerResponse.status(201).build());
+        when(handler.rename(any())).thenReturn(ServerResponse.status(202).build());
+        when(handler.topStockProducts(any())).thenReturn(ServerResponse.status(203).build());
+        WebTestClient routes = WebTestClient.bindToRouterFunction(new FranchiseRouter().franchiseRoutes(handler)).build();
+
+        routes.post().uri("/api/franchises").exchange().expectStatus().isEqualTo(201);
+        routes.patch().uri("/api/franchises/f1/name").exchange().expectStatus().isEqualTo(202);
+        routes.get().uri("/api/franchises/f1/top-stock-products").exchange().expectStatus().isEqualTo(203);
     }
 
     private WebTestClient.ResponseSpec patch(String body) {

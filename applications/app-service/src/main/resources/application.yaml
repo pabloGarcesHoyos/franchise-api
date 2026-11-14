@@ -5,18 +5,18 @@ spring:
     name: "FranchiseApi"
   devtools:
     add-properties: false
-  profiles:
-    include: null
   mongodb:
     uri: "${MONGODB_URI:mongodb://localhost:27017/franchises}"
   data:
     mongodb:
       auto-index-creation: true
+springdoc:
+  pre-loading-enabled: true
 management:
   endpoints:
     web:
       exposure:
-        include: "health,prometheus"
+        include: "health"
   endpoint:
     health:
       probes:

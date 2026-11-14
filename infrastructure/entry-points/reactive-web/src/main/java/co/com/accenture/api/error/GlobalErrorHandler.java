@@ -5,6 +5,7 @@ import co.com.accenture.model.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;
+import org.springframework.core.io.buffer.DataBufferLimitException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -29,6 +30,8 @@ public class GlobalErrorHandler implements WebExceptionHandler {
 
     static final String INVALID_REQUEST = "INVALID_REQUEST";
     static final String INVALID_REQUEST_MESSAGE = "Request body is missing or malformed";
+    static final String PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE";
+    static final String PAYLOAD_TOO_LARGE_MESSAGE = "Request body exceeds the maximum allowed size";
     static final String INTERNAL_ERROR = "INTERNAL_ERROR";
     static final String INTERNAL_ERROR_MESSAGE = "An unexpected error occurred";
 
@@ -39,6 +42,8 @@ public class GlobalErrorHandler implements WebExceptionHandler {
         return switch (error) {
             case BusinessException businessException -> write(exchange, statusOf(businessException.getError()),
                     new ErrorResponse(businessException.getError().getCode(), businessException.getMessage()));
+            case DataBufferLimitException ignored -> write(exchange, HttpStatus.CONTENT_TOO_LARGE,
+                    new ErrorResponse(PAYLOAD_TOO_LARGE, PAYLOAD_TOO_LARGE_MESSAGE));
             case ServerWebInputException ignored -> write(exchange, HttpStatus.BAD_REQUEST,
                     new ErrorResponse(INVALID_REQUEST, INVALID_REQUEST_MESSAGE));
             case ResponseStatusException statusException -> writeStatus(exchange, statusException.getStatusCode());

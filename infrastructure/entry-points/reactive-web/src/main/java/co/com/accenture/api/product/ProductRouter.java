@@ -16,6 +16,7 @@ import org.springdoc.core.annotations.RouterOperation;
 import org.springdoc.core.annotations.RouterOperations;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
@@ -28,14 +29,22 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 @Configuration
 public class ProductRouter {
 
+    private static final String BRANCH_PRODUCTS = "/api/branches/{branchId}/products";
+    private static final String BRANCH_PRODUCT = "/api/branches/{branchId}/products/{productId}";
+    private static final String PRODUCT_STOCK = "/api/products/{productId}/stock";
+    private static final String PRODUCT_NAME = "/api/products/{productId}/name";
+
     private static final String TAG = "Products";
-    private static final String JSON = "application/json";
+    private static final String JSON = MediaType.APPLICATION_JSON_VALUE;
 
     @Bean
     @RouterOperations({
-            @RouterOperation(path = "/api/branches/{branchId}/products", method = RequestMethod.POST,
+            @RouterOperation(path = BRANCH_PRODUCTS, method = RequestMethod.POST,
                     beanClass = ProductHandler.class, beanMethod = "add",
-                    operation = @Operation(operationId = "addProduct", summary = "Add a product to a branch", tags = TAG,
+                    operation = @Operation(operationId = "addProduct", summary = "Add a product to a branch",
+                            description = "Creates a product in an existing branch. The name is trimmed and must be unique "
+                                    + "within the branch, and the stock is a required integer greater than or equal to zero.",
+                            tags = TAG,
                             parameters = @Parameter(in = ParameterIn.PATH, name = "branchId", required = true, schema = @Schema(type = "string"),
                                     description = "Branch identifier"),
                             requestBody = @RequestBody(required = true,
@@ -48,13 +57,13 @@ public class ProductRouter {
                                     @ApiResponse(responseCode = "404", description = "Branch not found",
                                             content = @Content(mediaType = JSON, schema = @Schema(implementation = ErrorResponse.class))),
                                     @ApiResponse(responseCode = "409", description = "A product with this name already exists in the branch",
-                                            content = @Content(mediaType = JSON, schema = @Schema(implementation = ErrorResponse.class))),
-                                    @ApiResponse(responseCode = "500", description = "Unexpected error",
                                             content = @Content(mediaType = JSON, schema = @Schema(implementation = ErrorResponse.class)))
                             })),
-            @RouterOperation(path = "/api/branches/{branchId}/products/{productId}", method = RequestMethod.DELETE,
+            @RouterOperation(path = BRANCH_PRODUCT, method = RequestMethod.DELETE,
                     beanClass = ProductHandler.class, beanMethod = "delete",
-                    operation = @Operation(operationId = "deleteProduct", summary = "Delete a product from a branch", tags = TAG,
+                    operation = @Operation(operationId = "deleteProduct", summary = "Delete a product from a branch",
+                            description = "Deletes a product only if it belongs to the given branch. The branch is validated first.",
+                            tags = TAG,
                             parameters = {
                                     @Parameter(in = ParameterIn.PATH, name = "branchId", required = true, schema = @Schema(type = "string"),
                                             description = "Branch identifier"),
@@ -64,13 +73,13 @@ public class ProductRouter {
                             responses = {
                                     @ApiResponse(responseCode = "204", description = "Product deleted", content = @Content),
                                     @ApiResponse(responseCode = "404", description = "Branch not found or product not in the branch",
-                                            content = @Content(mediaType = JSON, schema = @Schema(implementation = ErrorResponse.class))),
-                                    @ApiResponse(responseCode = "500", description = "Unexpected error",
                                             content = @Content(mediaType = JSON, schema = @Schema(implementation = ErrorResponse.class)))
                             })),
-            @RouterOperation(path = "/api/products/{productId}/stock", method = RequestMethod.PATCH,
+            @RouterOperation(path = PRODUCT_STOCK, method = RequestMethod.PATCH,
                     beanClass = ProductHandler.class, beanMethod = "updateStock",
-                    operation = @Operation(operationId = "updateProductStock", summary = "Update the stock of a product", tags = TAG,
+                    operation = @Operation(operationId = "updateProductStock", summary = "Update the stock of a product",
+                            description = "Replaces the stock of an existing product and returns the updated product.",
+                            tags = TAG,
                             parameters = @Parameter(in = ParameterIn.PATH, name = "productId", required = true, schema = @Schema(type = "string"),
                                     description = "Product identifier"),
                             requestBody = @RequestBody(required = true,
@@ -81,13 +90,13 @@ public class ProductRouter {
                                     @ApiResponse(responseCode = "400", description = "Invalid stock or malformed request",
                                             content = @Content(mediaType = JSON, schema = @Schema(implementation = ErrorResponse.class))),
                                     @ApiResponse(responseCode = "404", description = "Product not found",
-                                            content = @Content(mediaType = JSON, schema = @Schema(implementation = ErrorResponse.class))),
-                                    @ApiResponse(responseCode = "500", description = "Unexpected error",
                                             content = @Content(mediaType = JSON, schema = @Schema(implementation = ErrorResponse.class)))
                             })),
-            @RouterOperation(path = "/api/products/{productId}/name", method = RequestMethod.PATCH,
+            @RouterOperation(path = PRODUCT_NAME, method = RequestMethod.PATCH,
                     beanClass = ProductHandler.class, beanMethod = "rename",
-                    operation = @Operation(operationId = "renameProduct", summary = "Rename a product", tags = TAG,
+                    operation = @Operation(operationId = "renameProduct", summary = "Rename a product",
+                            description = "Changes the name of an existing product and returns the updated product.",
+                            tags = TAG,
                             parameters = @Parameter(in = ParameterIn.PATH, name = "productId", required = true, schema = @Schema(type = "string"),
                                     description = "Product identifier"),
                             requestBody = @RequestBody(required = true,
@@ -100,15 +109,13 @@ public class ProductRouter {
                                     @ApiResponse(responseCode = "404", description = "Product not found",
                                             content = @Content(mediaType = JSON, schema = @Schema(implementation = ErrorResponse.class))),
                                     @ApiResponse(responseCode = "409", description = "A product with this name already exists in the branch",
-                                            content = @Content(mediaType = JSON, schema = @Schema(implementation = ErrorResponse.class))),
-                                    @ApiResponse(responseCode = "500", description = "Unexpected error",
                                             content = @Content(mediaType = JSON, schema = @Schema(implementation = ErrorResponse.class)))
                             }))
     })
     public RouterFunction<ServerResponse> productRoutes(ProductHandler handler) {
-        return route(POST("/api/branches/{branchId}/products"), handler::add)
-                .andRoute(DELETE("/api/branches/{branchId}/products/{productId}"), handler::delete)
-                .andRoute(PATCH("/api/products/{productId}/stock"), handler::updateStock)
-                .andRoute(PATCH("/api/products/{productId}/name"), handler::rename);
+        return route(POST(BRANCH_PRODUCTS), handler::add)
+                .andRoute(DELETE(BRANCH_PRODUCT), handler::delete)
+                .andRoute(PATCH(PRODUCT_STOCK), handler::updateStock)
+                .andRoute(PATCH(PRODUCT_NAME), handler::rename);
     }
 }

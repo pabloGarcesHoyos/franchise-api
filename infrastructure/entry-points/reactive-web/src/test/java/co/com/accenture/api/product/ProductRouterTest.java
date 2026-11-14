@@ -18,12 +18,14 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -282,6 +284,21 @@ class ProductRouterTest {
                 .expectBody().jsonPath("$.code").isEqualTo("INVALID_REQUEST");
 
         verify(renameProductUseCase, never()).execute(anyString(), any());
+    }
+
+    @Test
+    void shouldRouteEveryOperationToItsHandlerMethod() {
+        ProductHandler handler = mock(ProductHandler.class);
+        when(handler.add(any())).thenReturn(ServerResponse.status(201).build());
+        when(handler.delete(any())).thenReturn(ServerResponse.status(202).build());
+        when(handler.updateStock(any())).thenReturn(ServerResponse.status(203).build());
+        when(handler.rename(any())).thenReturn(ServerResponse.status(204).build());
+        WebTestClient routes = WebTestClient.bindToRouterFunction(new ProductRouter().productRoutes(handler)).build();
+
+        routes.post().uri("/api/branches/b1/products").exchange().expectStatus().isEqualTo(201);
+        routes.delete().uri("/api/branches/b1/products/p1").exchange().expectStatus().isEqualTo(202);
+        routes.patch().uri("/api/products/p1/stock").exchange().expectStatus().isEqualTo(203);
+        routes.patch().uri("/api/products/p1/name").exchange().expectStatus().isEqualTo(204);
     }
 
     private WebTestClient.ResponseSpec send(WebTestClient.RequestBodyUriSpec method, String uri, String body) {
