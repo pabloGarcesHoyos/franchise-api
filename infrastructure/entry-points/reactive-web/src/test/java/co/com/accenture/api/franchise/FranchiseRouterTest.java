@@ -104,6 +104,15 @@ class FranchiseRouterTest {
     }
 
     @Test
+    void shouldReturn413ForBodyOverBufferLimitWithoutCallingUseCase() {
+        post("{\"name\":\"" + "x".repeat(300_000) + "\"}")
+                .expectStatus().isEqualTo(413)
+                .expectBody().json("{\"code\":\"PAYLOAD_TOO_LARGE\",\"message\":\"Request body exceeds the maximum allowed size\"}", true);
+
+        verify(createFranchiseUseCase, never()).execute(any());
+    }
+
+    @Test
     void shouldRenameFranchiseAndReturn200() {
         Franchise renamed = Franchise.builder().id("f1").name("Pizza Place").build();
         when(renameFranchiseUseCase.execute("f1", "Pizza Place")).thenReturn(Mono.just(renamed));

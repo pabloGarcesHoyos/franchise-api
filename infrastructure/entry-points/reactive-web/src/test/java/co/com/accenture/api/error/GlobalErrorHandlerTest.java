@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.core.io.buffer.DataBufferLimitException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerCodecConfigurer;
@@ -58,6 +59,17 @@ class GlobalErrorHandlerTest {
 
         assertResponse(exchange, HttpStatus.BAD_REQUEST,
                 "{\"code\":\"INVALID_REQUEST\",\"message\":\"Request body is missing or malformed\"}");
+    }
+
+    @Test
+    void shouldMapBodyOverBufferLimitToPayloadTooLarge() {
+        MockServerWebExchange exchange = exchange();
+
+        StepVerifier.create(handler.handle(exchange, new DataBufferLimitException("Exceeded limit on max bytes to buffer : 262144")))
+                .verifyComplete();
+
+        assertResponse(exchange, HttpStatus.CONTENT_TOO_LARGE,
+                "{\"code\":\"PAYLOAD_TOO_LARGE\",\"message\":\"Request body exceeds the maximum allowed size\"}");
     }
 
     @Test
