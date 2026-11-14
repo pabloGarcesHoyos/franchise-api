@@ -10,23 +10,28 @@ La URL corresponde al despliegue actual en AWS, creado con Terraform. Si la infr
 
 ## Requisitos de la prueba
 
-| Requisito | Tipo | Implementación |
+| Requisito del enunciado | Tipo | Implementación |
 |---|---|---|
-| Proyecto desarrollado con Spring Boot | Criterio | Spring Boot 4.1.2 con WebFlux sobre Java 21, organizado con Clean Architecture |
-| Agregar una franquicia | Criterio | `POST /api/franchises` |
-| Agregar una sucursal a una franquicia | Criterio | `POST /api/franchises/{franchiseId}/branches` |
-| Agregar un producto a una sucursal | Criterio | `POST /api/branches/{branchId}/products` |
-| Eliminar un producto de una sucursal | Criterio | `DELETE /api/branches/{branchId}/products/{productId}` |
-| Modificar el stock de un producto | Criterio | `PATCH /api/products/{productId}/stock` |
-| Producto con más stock por sucursal de una franquicia, indicando la sucursal | Criterio | `GET /api/franchises/{franchiseId}/top-stock-products`, que devuelve la sucursal y su producto con más stock |
-| Persistencia de datos en un proveedor de nube | Criterio | MongoDB Atlas M0 sobre AWS us-east-1; MongoDB 8.0 en local |
-| Empaquetar la aplicación con Docker | Extra | `deployment/Dockerfile` multi-stage y `docker-compose.yml` con MongoDB |
-| Programación reactiva | Extra | Spring WebFlux, Project Reactor y Spring Data Reactive MongoDB |
-| Actualizar el nombre de una franquicia | Extra | `PATCH /api/franchises/{franchiseId}/name` |
-| Actualizar el nombre de una sucursal | Extra | `PATCH /api/branches/{branchId}/name` |
-| Actualizar el nombre de un producto | Extra | `PATCH /api/products/{productId}/name` |
-| Aprovisionar la persistencia como infraestructura como código | Extra | Terraform crea el proyecto, el cluster M0, el usuario y la access list de MongoDB Atlas |
-| Desplegar la solución completa en la nube | Extra | Terraform crea ECR, SSM Parameter Store, IAM y una EC2 en AWS; la API corre en la URL indicada arriba |
+| Desarrollado en Spring Boot. | Criterio de aceptación | Spring Boot 4.1.2 con WebFlux sobre Java 21 |
+| Endpoint para agregar una nueva franquicia. | Criterio de aceptación | `POST /api/franchises` |
+| Endpoint para agregar una nueva sucursal a la franquicia. | Criterio de aceptación | `POST /api/franchises/{franchiseId}/branches` |
+| Endpoint para agregar un nuevo producto a la sucursal. | Criterio de aceptación | `POST /api/branches/{branchId}/products` |
+| Endpoint para eliminar un producto de una sucursal. | Criterio de aceptación | `DELETE /api/branches/{branchId}/products/{productId}` |
+| Endpoint para modificar el stock de un producto. | Criterio de aceptación | `PATCH /api/products/{productId}/stock` |
+| Endpoint que muestre cuál es el producto con más stock por sucursal para una franquicia puntual, retornando un listado de productos que indique a qué sucursal pertenece cada uno. | Criterio de aceptación | `GET /api/franchises/{franchiseId}/top-stock-products`, que devuelve un listado con `branchId`, `branchName`, `productId`, `productName` y `stock` |
+| Persistencia de datos (Redis, MySQL, MongoDB o DynamoDB) en algún proveedor de nube. | Criterio de aceptación | MongoDB Atlas M0 sobre AWS us-east-1; MongoDB 8.0 en local |
+| Empaquetar la aplicación con Docker. | Punto extra | `deployment/Dockerfile` multi-stage y `docker-compose.yml` con MongoDB |
+| Programación funcional o reactiva. | Punto extra | Spring WebFlux con router functions, Project Reactor y Spring Data Reactive MongoDB |
+| Endpoint para actualizar el nombre de la franquicia. | Punto extra | `PATCH /api/franchises/{franchiseId}/name` |
+| Endpoint para actualizar el nombre de la sucursal. | Punto extra | `PATCH /api/branches/{branchId}/name` |
+| Endpoint para actualizar el nombre del producto. | Punto extra | `PATCH /api/products/{productId}/name` |
+| Aprovisionar la persistencia como infraestructura como código (Terraform, CloudFormation, etc.). | Punto extra | Terraform crea el proyecto, el cluster M0, el usuario y la access list de MongoDB Atlas |
+| Desplegar toda la solución en la nube. | Punto extra | Terraform crea ECR, SSM Parameter Store, IAM y una EC2 en AWS; la API corre en la URL indicada arriba |
+| Flujo de trabajo con Git. | Nota del enunciado | Ramas `main`, `develop` y de trabajo, pull requests y Conventional Commits; ver [Flujo de Git](#flujo-de-git) |
+| Repositorio público. | Nota del enunciado | https://github.com/pabloGarcesHoyos/franchise-api |
+| Documentación para desplegar desde un entorno local. | Nota del enunciado | [Ejecución local](#ejecución-local) y [Despliegue con Terraform](#despliegue-con-terraform) |
+
+El equipo evaluador destacó además las pruebas unitarias, Clean Architecture y las buenas prácticas, que se cubren en [Pruebas](#pruebas), [Arquitectura](#arquitectura) y [Decisiones de diseño y casos borde](#decisiones-de-diseño-y-casos-borde).
 
 ## Contenido
 
