@@ -80,7 +80,12 @@ La regla de dependencias apunta siempre hacia el dominio:
 - `reactive-web` traduce HTTP a casos de uso. Los DTOs de petición y respuesta están separados del dominio y los handlers no contienen lógica de negocio.
 - `app-service` es el único módulo que conoce a todos. Arranca la aplicación y registra los casos de uso como beans sin que el dominio tenga anotaciones de Spring.
 
-El build valida estas reglas con la tarea `validateStructure` del plugin y con las pruebas de arquitectura (ArchUnit) que el plugin genera en `app-service`.
+La regla se comprueba en dos niveles:
+
+- El grafo de módulos de Gradle impide compilar una dependencia en el sentido equivocado, y la tarea `validateStructure` del plugin valida la estructura del proyecto.
+- `LayerDependencyTest` (ArchUnit, en `app-service`) verifica la dirección de las dependencias entre capas: ninguna capa usa el entry point ni el driven adapter, `usecase` solo es usado por el entry point y la aplicación, `model` solo depende de Java, Lombok y Reactor, y `usecase` solo de `model`.
+
+Además, el plugin genera en `app-service` sus propias pruebas de ArchUnit, que revisan convenciones de nombres y que los campos de los casos de uso y beans sean `final`.
 
 ## Tecnologías
 
@@ -175,24 +180,28 @@ Los índices únicos se crean al arrancar la aplicación, así que MongoDB debe 
 ./gradlew build
 ```
 
-El build compila, ejecuta todas las pruebas, genera los reportes de cobertura y de mutación, y falla si la cobertura de líneas de algún módulo baja del 80 %. Actualmente hay 196 pruebas.
+El build compila, ejecuta todas las pruebas, genera los reportes de cobertura y de mutación, y falla si la cobertura de líneas de algún módulo baja del 80 %. Actualmente hay 242 pruebas.
 
 | Módulo | Pruebas | Qué cubren |
 |---|---|---|
-| model | 45 | Reglas de cada entidad: nombres recortados y obligatorios, stock no negativo y obligatorio, inmutabilidad |
+| model | 67 | Reglas de cada entidad: nombres recortados, obligatorios y de 100 caracteres como máximo, caracteres invisibles, stock no negativo y obligatorio, inmutabilidad |
 | usecase | 36 | Cada caso de uso con Mockito y StepVerifier: camino feliz, recursos no encontrados, validaciones, conflictos y que no se guarde nada cuando hay error |
 | mongo-repository | 34 | Mapeo de documentos, delegación y traducción de duplicados (unitarias) y 7 pruebas de integración contra MongoDB real |
-| reactive-web | 74 | Cada endpoint con WebTestClient y casos de uso simulados, el manejador de errores y las cabeceras de seguridad |
-| app-service | 7 | Registro de casos de uso y reglas de arquitectura |
+| reactive-web | 93 | Cada endpoint y su tabla de rutas con WebTestClient y casos de uso simulados, la configuración de Jackson, el manejador de errores, OpenAPI y las cabeceras de seguridad |
+| app-service | 12 | Registro de los nueve casos de uso, reglas de capas y del plugin con ArchUnit, y 2 pruebas de extremo a extremo con BlockHound |
 
 ### Pruebas de integración
 
-`MongoAdaptersIntegrationTest` levanta un contenedor `mongo:8.0` con Testcontainers y comprueba contra una base real los índices únicos, el orden de las sucursales por nombre y el desempate por nombre del producto con más stock. Requiere Docker. Si Docker no está disponible, esas 7 pruebas se marcan como omitidas y el build sigue en verde.
+Requieren Docker. Si Docker no está disponible, las 9 pruebas que lo usan se marcan como omitidas y el build sigue en verde.
+
+- `MongoAdaptersIntegrationTest` (7 pruebas) levanta un contenedor `mongo:8.0` con Testcontainers y comprueba contra una base real los índices únicos, el orden de las sucursales por nombre y el desempate por nombre del producto con más stock.
+- `NonBlockingEndToEndTest` (2 pruebas) arranca la aplicación completa sobre Netty con MongoDB de Testcontainers y recorre los nueve endpoints y sus errores con BlockHound activo, de modo que cualquier llamada bloqueante en un hilo del event loop hace fallar la prueba. El scaffold ya instala BlockHound en todas las pruebas; la única excepción configurada corresponde a dos métodos internos del driver de MongoDB (un lock interno y la generación del identificador de sesión), no al código del proyecto.
 
 Para ejecutarlas por separado:
 
 ```bash
 ./gradlew :mongo-repository:test --tests '*MongoAdaptersIntegrationTest'
+./gradlew :app-service:test --tests '*NonBlockingEndToEndTest'
 ```
 
 ### Cobertura
@@ -207,7 +216,7 @@ La cobertura actual es del 100 % de líneas en `model`, `usecase` y `mongo-repos
 
 ### Pruebas de mutación
 
-Pitest se ejecuta dentro de `./gradlew build` y deja su reporte en `<módulo>/build/reports/pitest/index.html`. Para ejecutarlo solo en los módulos con código:
+Pitest se ejecuta dentro de `./gradlew build` y deja su reporte en `<módulo>/build/reports/pitest/index.html`. Todos los mutantes generados mueren: 30 en `model`, 30 en `usecase`, 19 en `mongo-repository` y 58 en `reactive-web`. Para ejecutarlo solo en los módulos con código:
 
 ```bash
 ./gradlew :model:pitest :usecase:pitest :mongo-repository:pitest :reactive-web:pitest
